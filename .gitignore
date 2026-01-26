@@ -1,0 +1,27 @@
+# Kernel module build artifacts
+*.ko
+*.mod
+*.mod.c
+*.o
+*.cmd
+.*.cmd
+
+# Kernel build directory
+.tmp_versions/
+
+# Module metadata
+Module.symvers
+modules.order
+Module.markers
+
+# Build output
+build/
+dist/
+
+# Editor and IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
