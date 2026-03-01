@@ -29,7 +29,7 @@ Paired with a modern **Web-based Visualizer** (featuring real-time FFT analysis 
 ## Core Features
 
 ### 1. Kernel-Level DSP Engine (my_audio.c)
-- **High-Speed 5ms Timer:** The simulated hardware interrupts fire every 5ms, processing `rate/100` frames per tick. This accelerates processing to run at **~2x real-time speed**, cutting rendering time in half compared to standard loopback drivers.
+- **High-Speed 5ms Timer:** The simulated hardware interrupts fire every 5ms, processing `rate/100` frames per tick. Due to Python/ALSA synchronization overhead, this accelerates processing to run at **~1.2x the audio duration** (e.g., a 60s file processes in ~72s), significantly faster than real-time playback speed.
 - **Dynamic Sample Rates:** Unlocked `hw_params` matrix allows native processing of any standard sample rate (`8kHz` to `192kHz`) and `16-bit` mono/stereo audio without user-space resampling.
 - **Sysfs Real-Time Controls:** Modify Reverb `delay_ms`, `decay`, and `wet` mix directly via `/sys/kernel/my_audio/` while audio is streaming.
 - **Zero-Copy Architecture:** DSP logic acts directly on the ALSA-negotiated DMA pointers.
@@ -72,8 +72,14 @@ graph TD;
 cd Driver
 make clean && make
 
-# Insert the virtual card into the Kernel
+# Note: Wireplumber often locks the ALSA device in VMs, preventing module removal.
+# Kill it first before removing the kernel module.
+sudo killall -9 wireplumber
+
+# Remove old module if present
 sudo rmmod my_audio 2>/dev/null
+
+# Insert new module
 sudo insmod my_audio.ko
 
 # Grant read/write access to ALSA nodes
@@ -106,8 +112,3 @@ python3 visualizer.py
 5. Use the playback controls to A/B test the original vs. processed signals alongside the FFT spectrum analyzer.
 
 ---
-
-<div align="center">
-  <p><i>"Kernel panics are just the bass dropping too hard."</i></p>
-  <b>Developed as an advanced exploration into ALSA internals, Kernel-Space DSP, and Full-Stack Integration.</b>
-</div>
