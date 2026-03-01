@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EchoDriver Studio</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #09090b;
+            --bg-panel: #18181b;
+            --bg-canvas: #000000;
+            --border-panel: #27272a;
+            --border-accent: #3f3f46;
+            --text-title: #ffffff;
+            --text-body: #a1a1aa;
+            --text-dim: #52525b;
+            --cyan: #00f2fe;
+            --cyan-dim: rgba(0, 242, 254, 0.2);
+            --pink: #ff0844;
+            --pink-dim: rgba(255, 8, 68, 0.2);
+            --green: #22c55e;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-body);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 2rem 1rem;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-panel);
+        }
+
+        .brand h1 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-title);
+            letter-spacing: -1px;
+            text-transform: uppercase;
+            position: relative;
+            display: inline-block;
+        }
+
+        .brand h1::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            right: -8px;
+            width: 8px;
+            height: 8px;
+            background: var(--cyan);
+            box-shadow: 0 0 10px var(--cyan);
+        }
+
+        .brand p {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-top: 0.25rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .global-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .g-btn {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-accent);
+            color: var(--text-title);
+            padding: 0.5rem 1.25rem;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+
+        .g-btn:hover {
+            background: #27272a;
+            border-color: var(--cyan);
+            color: var(--cyan);
+        }
+
+        .g-btn:active {
+            transform: scale(0.98);
+        }
+
+        .g-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .g-btn.processing {
+            border-color: var(--green);
+            color: var(--green);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            50% {
+                opacity: 0.6;
+            }
+        }
+
+        /* ======== Control Panel ======== */
+        .control-panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-panel);
+            border-radius: 8px;
+            padding: 1.5rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1px 1fr;
+            gap: 1.5rem;
+            align-items: end;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        @media (max-width: 900px) {
+            .control-panel {
+                grid-template-columns: 1fr;
+            }
+
+            .divider {
+                display: none;
+            }
+        }
+
+        .control-group label {
+            display: block;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.75rem;
+        }
+
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            background: var(--border-panel);
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--cyan);
+            box-shadow: 0 0 8px var(--cyan-dim);
+            cursor: pointer;
+        }
+
+        .slider-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-title);
+            min-width: 50px;
+            text-align: right;
+        }
+
+        .divider {
+            background: var(--border-panel);
+            width: 1px;
+            height: 100%;
+        }
+
+        /* Upload Zone */
+        .upload-zone {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .drop-area {
+            border: 2px dashed var(--border-accent);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            min-height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .drop-area:hover,
+        .drop-area.dragover {
+            border-color: var(--cyan);
+            color: var(--cyan);
+            background: rgba(0, 242, 254, 0.03);
+        }
+
+        .drop-area.has-file {
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .process-btn {
+            background: transparent;
+            border: 1px solid var(--cyan);
+            color: var(--cyan);
+            padding: 0.5rem;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: all 0.2s;
+        }
+
+        .process-btn:hover {
+            background: var(--cyan-dim);
+        }
+
+        .process-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .status-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            min-height: 1.2em;
+        }
+
+        .status-text.error {
+            color: var(--pink);
+        }
+
+        .status-text.ok {
+            color: var(--green);
+        }
+
+        /* ======== Track Panel ======== */
+        .track {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-panel);
+            border-radius: 8px;
+            padding: 1.25rem;
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        @media (max-width: 800px) {
+            .track {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .track-info {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            border-right: 1px solid var(--border-panel);
+            padding-right: 1.5rem;
+        }
+
+        @media (max-width: 800px) {
+            .track-info {
+                border-right: none;
+                border-bottom: 1px solid var(--border-panel);
+                padding-right: 0;
+                padding-bottom: 1rem;
+                flex-direction: row;
+                align-items: center;
+            }
+        }
+
+        .track-title {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-title);
+            font-weight: 700;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .track.orig .status-dot {
+            background: var(--cyan);
+            box-shadow: 0 0 8px var(--cyan);
+        }
+
+        .track.rev .status-dot {
+            background: var(--pink);
+            box-shadow: 0 0 8px var(--pink);
+        }
+
+        .meta {
+            font-size: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-dim);
+            margin-top: 0.5rem;
+        }
+
+        .transport {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .play-btn {
+            background: transparent;
+            border: 1px solid var(--border-accent);
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .play-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: var(--text-title);
+            transform: translateX(2px);
+            transition: fill 0.2s;
+            z-index: 2;
+        }
+
+        .play-btn.playing svg {
+            transform: translateX(0);
+        }
+
+        .track.orig .play-btn:hover {
+            border-color: var(--cyan);
+        }
+
+        .track.orig .play-btn:hover svg {
+            fill: var(--cyan);
+        }
+
+        .track.rev .play-btn:hover {
+            border-color: var(--pink);
+        }
+
+        .track.rev .play-btn:hover svg {
+            fill: var(--pink);
+        }
+
+        .play-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 1;
+        }
+
+        .track.orig .play-btn::before {
+            background: var(--cyan-dim);
+        }
+
+        .track.rev .play-btn::before {
+            background: var(--pink-dim);
+        }
+
+        .play-btn.playing::before {
+            opacity: 1;
+        }
+
+        .time-display {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.1rem;
+            color: var(--text-title);
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.5px;
+        }
+
+        .displays {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .canvas-wrapper {
+            background: var(--bg-canvas);
+            border: 1px solid var(--border-panel);
+            border-radius: 4px;
+            position: relative;
+            height: 100px;
+            overflow: hidden;
+        }
+
+        .canvas-wrapper::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+            z-index: 10;
+            opacity: 0.5;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .playhead {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            width: 2px;
+            background: #fff;
+            box-shadow: 0 0 10px #fff;
+            opacity: 0;
+            z-index: 20;
+            pointer-events: none;
+            will-change: transform;
+        }
+
+        .playing .playhead {
+            opacity: 1;
+        }
+
+        .master-spectrum {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-panel);
+            border-radius: 8px;
+            padding: 1.25rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            margin-top: 0.5rem;
+        }
+
+        .master-spectrum h2 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+        }
+
+        .master-canvas-wrapper {
+            height: 120px;
+            background: var(--bg-canvas);
+            border: 1px solid var(--border-panel);
+            border-radius: 4px;
+            position: relative;
+        }
+
+        .master-canvas-wrapper::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* ======== Audio Stats Bar ======== */
+        .stats-bar {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-panel);
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            align-items: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+
+        .stat-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.6rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-title);
+        }
+
+        .stat-value.accent {
+            color: var(--cyan);
+        }
+
+        .stat-value.pink {
+            color: var(--pink);
+        }
+
+        .stat-value.dim {
+            color: var(--text-dim);
+            font-weight: 400;
+            font-size: 0.85rem;
+        }
+
+        .stats-divider {
+            width: 1px;
+            height: 36px;
+            background: var(--border-panel);
+        }
+
+        .stat-section {
+            display: flex;
+            align-items: center;
+        }
+
+        .stat-section-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-section-title.accent {
+            color: var(--cyan);
+        }
+
+        .stat-value.green {
+            color: var(--green);
+        }
+
+        .pink-text {
+            color: var(--pink);
+        }
+
+        /* Progress Bar */
+        .progress-bar-container {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-panel);
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .progress-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--cyan);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            animation: pulse 1s infinite;
+        }
+
+        .progress-timer {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-title);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .progress-track {
+            width: 100%;
+            height: 6px;
+            background: var(--border-panel);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--cyan), var(--pink));
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        .progress-eta {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            margin-top: 0.4rem;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+
+        <header>
+            <div class="brand">
+                <h1>EchoStudio</h1>
+                <p>Configurable Kernel DSP</p>
+            </div>
+            <div class="global-controls">
+                <button class="g-btn" onclick="playBoth()">SYNC PLAY</button>
+                <button class="g-btn" onclick="reloadAudio()">RELOAD FILES</button>
+            </div>
+        </header>
+
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <!-- Delay -->
+            <div class="control-group">
+                <label>Delay (ms)</label>
+                <div class="slider-row">
+                    <input type="range" id="delaySlider" min="10" max="1500" value="300"
+                        oninput="updateParam('reverb_delay_ms', this.value)">
+                    <span class="slider-value" id="delayValue">300</span>
+                </div>
+            </div>
+
+            <!-- Decay -->
+            <div class="control-group">
+                <label>Decay (%)</label>
+                <div class="slider-row">
+                    <input type="range" id="decaySlider" min="0" max="95" value="50"
+                        oninput="updateParam('reverb_decay', this.value)">
+                    <span class="slider-value" id="decayValue">50</span>
+                </div>
+            </div>
+
+            <!-- Wet/Dry -->
+            <div class="control-group">
+                <label>Wet Mix (%)</label>
+                <div class="slider-row">
+                    <input type="range" id="wetSlider" min="0" max="100" value="100"
+                        oninput="updateParam('reverb_wet', this.value)">
+                    <span class="slider-value" id="wetValue">100</span>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- File Upload -->
+            <div class="upload-zone">
+                <label
+                    style="font-family: 'JetBrains Mono'; font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px;">Audio
+                    Input</label>
+                <div class="drop-area" id="dropArea" onclick="document.getElementById('fileInput').click()">
+                    Drop a WAV file here<br>or click to browse
+                </div>
+                <input type="file" id="fileInput" accept=".wav,audio/wav" onchange="handleFileSelect(event)">
+                <button class="process-btn" id="processBtn" onclick="processAudio()">▶ PROCESS THROUGH DRIVER</button>
+                <div class="status-text" id="processStatus"></div>
+            </div>
+        </div>
+
+        <!-- Audio Stats -->
+        <div class="stats-bar" id="statsBar">
+            <!-- Input Stats (shown immediately on upload) -->
+            <div class="stat-section">
+                <span class="stat-section-title accent">▸ INPUT</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Source</span>
+                <span class="stat-value dim" id="statSource">—</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">File Size</span>
+                <span class="stat-value" id="statFileSize">—</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Sample Rate</span>
+                <span class="stat-value accent" id="statRate">—</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Channels</span>
+                <span class="stat-value" id="statChannels">—</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Duration</span>
+                <span class="stat-value accent" id="statInDuration">—</span>
+            </div>
+
+            <div class="stats-divider"></div>
+
+            <!-- Output Stats (shown after processing) -->
+            <div class="stat-section">
+                <span class="stat-section-title pink-text">▸ OUTPUT</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Duration</span>
+                <span class="stat-value pink" id="statOutDuration">—</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Frames</span>
+                <span class="stat-value" id="statOutFrames">—</span>
+            </div>
+            <div class="stat-item" id="statProcessItem" style="display:none;">
+                <span class="stat-label">Processed In</span>
+                <span class="stat-value green" id="statProcessTime">—</span>
+            </div>
+        </div>
+
+        <!-- Processing Progress Bar -->
+        <div class="progress-bar-container" id="progressContainer" style="display:none;">
+            <div class="progress-header">
+                <span class="progress-label" id="progressLabel">PROCESSING...</span>
+                <span class="progress-timer" id="progressTimer">00:00</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <span class="progress-eta" id="progressEta"></span>
+        </div>
+
+        <!-- Track 1: Original -->
+        <div class="track orig">
+            <div class="track-info">
+                <div>
+                    <div class="track-title">
+                        <div class="status-dot"></div> CH 1 / IN
+                    </div>
+                    <div class="meta" id="origInfo">Waiting for stream...</div>
+                </div>
+                <div class="transport">
+                    <button class="play-btn" id="origPlayBtn" onclick="togglePlay('original')">
+                        <svg viewBox="0 0 24 24">
+                            <path id="origIcon"
+                                d="M8 5.14v14.72a1 1 0 001.5.86l11-7.36a1 1 0 000-1.72l-11-7.36a1 1 0 00-1.5.86z">
+                            </path>
+                        </svg>
+                    </button>
+                    <div class="time-display" id="origTime">00.00</div>
+                </div>
+            </div>
+            <div class="displays" id="origDisplays">
+                <div class="canvas-wrapper">
+                    <canvas id="origWaveform"></canvas>
+                    <div class="playhead" id="origPlayhead"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Track 2: Reverb -->
+        <div class="track rev">
+            <div class="track-info">
+                <div>
+                    <div class="track-title">
+                        <div class="status-dot"></div> CH 2 / OUT
+                    </div>
+                    <div class="meta" id="reverbInfo">Waiting for stream...</div>
+                </div>
+                <div class="transport">
+                    <button class="play-btn" id="reverbPlayBtn" onclick="togglePlay('reverb')">
+                        <svg viewBox="0 0 24 24">
+                            <path id="reverbIcon"
+                                d="M8 5.14v14.72a1 1 0 001.5.86l11-7.36a1 1 0 000-1.72l-11-7.36a1 1 0 00-1.5.86z">
+                            </path>
+                        </svg>
+                    </button>
+                    <div class="time-display" id="reverbTime">00.00</div>
+                </div>
+            </div>
+            <div class="displays" id="reverbDisplays">
+                <div class="canvas-wrapper">
+                    <canvas id="reverbWaveform"></canvas>
+                    <div class="playhead" id="reverbPlayhead"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Master Spectrum -->
+        <div class="master-spectrum">
+            <h2>Real-time FFT Analysis</h2>
+            <div class="master-canvas-wrapper">
+                <canvas id="masterSpectrum"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // ============================
+        // Audio Engine
+        // ============================
+        let audioCtx = null;
+
+        const tracks = {
+            original: { buf: null, src: null, analyser: null, playing: false, start: 0, offset: 0, color: '#00f2fe' },
+            reverb: { buf: null, src: null, analyser: null, playing: false, start: 0, offset: 0, color: '#ff0844' }
+        };
+
+        const iconPlayPath = 'M8 5.14v14.72a1 1 0 001.5.86l11-7.36a1 1 0 000-1.72l-11-7.36a1 1 0 00-1.5.86z';
+        const iconPausePath = 'M6 5h4v14H6V5zm8 0h4v14h-4V5z';
+
+        async function loadAudio(name, url) {
+            const info = document.getElementById(name === 'original' ? 'origInfo' : 'reverbInfo');
+            try {
+                info.textContent = 'BUFFERING...';
+                const resp = await fetch(url + '?t=' + Date.now()); // Cache bust
+                if (!resp.ok) throw new Error(resp.status);
+                const arrayBuf = await resp.arrayBuffer();
+
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                tracks[name].buf = await audioCtx.decodeAudioData(arrayBuf);
+
+                const b = tracks[name].buf;
+                info.textContent = `${b.sampleRate}HZ | ${b.numberOfChannels}CH | ${b.duration.toFixed(2)}S`;
+
+                requestAnimationFrame(() => drawStaticWaveform(name));
+            } catch (e) {
+                info.textContent = 'NO FILE';
+                info.style.color = '#52525b';
+            }
+        }
+
+        function reloadAudio() {
+            // Stop any playing tracks
+            if (tracks.original.playing) stopTrack('original');
+            if (tracks.reverb.playing) stopTrack('reverb');
+
+            loadAudio('original', '/audio/original_input.wav');
+            loadAudio('reverb', '/audio/reverb_output.wav');
+        }
+
+        loadAudio('original', '/audio/original_input.wav');
+        loadAudio('reverb', '/audio/reverb_output.wav');
+        loadMetadata();
+
+        // ============================
+        // Audio Metadata Stats
+        // ============================
+        async function loadMetadata() {
+            try {
+                const resp = await fetch('/api/metadata');
+                const m = await resp.json();
+                if (m.error) return;
+
+                // Only update OUTPUT stats from metadata (INPUT stats come from upload)
+                document.getElementById('statOutDuration').textContent = m.output_duration ? m.output_duration + 's' : '—';
+                document.getElementById('statOutFrames').textContent = m.output_frames ? m.output_frames.toLocaleString() : '—';
+
+                // If no file was uploaded, also fill in input stats from metadata
+                if (!selectedFile) {
+                    document.getElementById('statSource').textContent = m.source_file || '—';
+                    document.getElementById('statRate').textContent = m.sample_rate ? m.sample_rate + ' Hz' : '—';
+                    document.getElementById('statChannels').textContent = m.channels === 1 ? 'MONO' : m.channels === 2 ? 'STEREO' : '—';
+                    document.getElementById('statInDuration').textContent = m.input_duration ? m.input_duration + 's' : '—';
+                    document.getElementById('statFileSize').textContent = '—';
+                }
+            } catch (e) { /* metadata not available yet */ }
+        }
+
+        // ============================
+        // Waveform Drawing (fast fillRect)
+        // ============================
+        function drawStaticWaveform(name) {
+            const t = tracks[name];
+            if (!t.buf) return;
+
+            const cvs = document.getElementById(name === 'original' ? 'origWaveform' : 'reverbWaveform');
+            const ctx = cvs.getContext('2d', { alpha: false });
+
+            cvs.width = cvs.offsetWidth;
+            cvs.height = cvs.offsetHeight;
+
+            const w = cvs.width;
+            const h = cvs.height;
+            const mid = h / 2;
+
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, w, h);
+
+            const data = t.buf.getChannelData(0);
+            const step = Math.ceil(data.length / w);
+
+            ctx.fillStyle = '#3f3f46';
+            ctx.fillRect(0, mid, w, 1);
+
+            ctx.fillStyle = t.color;
+
+            for (let i = 0; i < w; i++) {
+                let min = 1, max = -1;
+                for (let j = 0; j < step; j++) {
+                    const val = data[(i * step) + j];
+                    if (val < min) min = val;
+                    if (val > max) max = val;
+                }
+                const y = mid + (min * mid);
+                const height = Math.max(1, (max - min) * mid);
+                ctx.fillRect(i, y, 1, height);
+            }
+        }
+
+        // ============================
+        // Playback
+        // ============================
+        function togglePlay(name) {
+            initAudio();
+            const t = tracks[name];
+            if (t.playing) stopTrack(name);
+            else playTrack(name);
+        }
+
+        function playBoth() {
+            initAudio();
+            if (tracks.original.playing) stopTrack('original');
+            if (tracks.reverb.playing) stopTrack('reverb');
+            tracks.original.offset = 0;
+            tracks.reverb.offset = 0;
+            playTrack('original');
+            playTrack('reverb');
+        }
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playTrack(name) {
+            const t = tracks[name];
+            if (!t.buf) return;
+
+            // Ensure offset is valid (wrap around if past end)
+            if (t.offset >= t.buf.duration) {
+                t.offset = 0;
+            }
+
+            t.src = audioCtx.createBufferSource();
+            t.src.buffer = t.buf;
+
+            t.analyser = audioCtx.createAnalyser();
+            t.analyser.fftSize = 1024;
+            t.analyser.smoothingTimeConstant = 0.8;
+
+            t.src.connect(t.analyser);
+            t.analyser.connect(audioCtx.destination);
+
+            t.src.start(0, t.offset);
+            t.start = audioCtx.currentTime - t.offset;
+            t.playing = true;
+
+            t.src.onended = () => {
+                // Only trigger if this was a natural end, not a manual stop
+                if (t.playing) {
+                    t.playing = false;
+                    t.offset = 0; // reset for next play
+                    updateUI(name);
+                }
+            };
+
+            updateUI(name);
+            requestAnimationFrame(() => renderTimers(name));
+        }
+
+        function stopTrack(name) {
+            const t = tracks[name];
+            if (!t.src) return;
+
+            t.playing = false;
+
+            // Save exactly where we paused
+            t.offset = audioCtx.currentTime - t.start;
+
+            t.src.onended = null; // Prevent onended callback
+            try { t.src.stop(); } catch (e) { }
+            t.src = null;
+
+            updateUI(name);
+        }
+
+        function updateUI(name) {
+            const btn = document.getElementById(name === 'original' ? 'origPlayBtn' : 'reverbPlayBtn');
+            const icon = document.getElementById(name === 'original' ? 'origIcon' : 'reverbIcon');
+            const displays = document.getElementById(name === 'original' ? 'origDisplays' : 'reverbDisplays');
+
+            if (tracks[name].playing) {
+                icon.setAttribute('d', iconPausePath);
+                btn.classList.add('playing');
+                displays.classList.add('playing');
+            } else {
+                icon.setAttribute('d', iconPlayPath);
+                btn.classList.remove('playing');
+                displays.classList.remove('playing');
+            }
+        }
+
+        function formatTime(s) {
+            const sec = Math.floor(s);
+            const ms = Math.floor((s - sec) * 100);
+            return `${sec.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+        }
+
+        function renderTimers(name) {
+            const t = tracks[name];
+            if (!t.playing) return;
+
+            const current = audioCtx.currentTime - t.start;
+            const total = t.buf.duration;
+            const pct = Math.min(current / total, 1);
+
+            const timeEl = document.getElementById(name === 'original' ? 'origTime' : 'reverbTime');
+            timeEl.textContent = formatTime(current);
+
+            const playhead = document.getElementById(name === 'original' ? 'origPlayhead' : 'reverbPlayhead');
+            const w = playhead.parentElement.offsetWidth;
+            playhead.style.transform = `translate3d(${pct * w}px, 0, 0)`;
+
+            requestAnimationFrame(() => renderTimers(name));
+        }
+
+        // ============================
+        // Spectrum (fast fillRect)
+        // ============================
+        const specCvs = document.getElementById('masterSpectrum');
+        const specCtx = specCvs.getContext('2d', { alpha: false });
+
+        function drawSpectrum() {
+            requestAnimationFrame(drawSpectrum);
+
+            const pOrig = tracks.original.playing && tracks.original.analyser;
+            const pRev = tracks.reverb.playing && tracks.reverb.analyser;
+            if (!pOrig && !pRev) return;
+
+            if (specCvs.width !== specCvs.offsetWidth) {
+                specCvs.width = specCvs.offsetWidth;
+                specCvs.height = specCvs.offsetHeight;
+            }
+
+            const w = specCvs.width;
+            const h = specCvs.height;
+
+            specCtx.fillStyle = '#000';
+            specCtx.fillRect(0, 0, w, h);
+
+            const bins = 64;
+            const barWidth = w / bins;
+
+            const drawLayer = (analyser, colorHex, isReverb) => {
+                const data = new Uint8Array(analyser.frequencyBinCount);
+                analyser.getByteFrequencyData(data);
+                specCtx.fillStyle = colorHex;
+                for (let i = 0; i < bins; i++) {
+                    const dataIdx = Math.floor(Math.pow(i / bins, 1.2) * (data.length * 0.3));
+                    const val = data[dataIdx] / 255.0;
+                    if (val > 0.01) {
+                        const barH = val * h * 0.9;
+                        const offset = isReverb ? (barWidth / 2) : 0;
+                        specCtx.fillRect((i * barWidth) + offset, h - barH, barWidth / 2 - 1, barH);
+                    }
+                }
+            };
+
+            if (pOrig) drawLayer(tracks.original.analyser, tracks.original.color, false);
+            if (pRev) drawLayer(tracks.reverb.analyser, tracks.reverb.color, true);
+        }
+        drawSpectrum();
+
+        // ============================
+        // Reverb Parameter Controls
+        // ============================
+        const paramMap = {
+            'reverb_delay_ms': { slider: 'delaySlider', display: 'delayValue' },
+            'reverb_decay': { slider: 'decaySlider', display: 'decayValue' },
+            'reverb_wet': { slider: 'wetSlider', display: 'wetValue' }
+        };
+
+        // Debounce timer for sysfs writes
+        let paramTimers = {};
+
+        function updateParam(name, value) {
+            // Update display immediately
+            document.getElementById(paramMap[name].display).textContent = value;
+
+            // Debounce the actual sysfs write
+            clearTimeout(paramTimers[name]);
+            paramTimers[name] = setTimeout(() => {
+                const body = {};
+                body[name] = parseInt(value);
+                fetch('/api/params', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                }).catch(e => console.error('Param write failed:', e));
+            }, 200);
+        }
+
+        // Load current params from driver on page load
+        async function loadParams() {
+            try {
+                const resp = await fetch('/api/params');
+                const data = await resp.json();
+                for (const [name, ids] of Object.entries(paramMap)) {
+                    if (data[name] !== null && data[name] !== undefined) {
+                        document.getElementById(ids.slider).value = data[name];
+                        document.getElementById(ids.display).textContent = data[name];
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load params:', e);
+            }
+        }
+        loadParams();
+
+        // ============================
+        // File Upload & Processing
+        // ============================
+        let selectedFile = null;
+        let uploadedDuration = 0; // Duration (seconds) from Web Audio decode
+
+        const dropArea = document.getElementById('dropArea');
+        const processBtn = document.getElementById('processBtn');
+        const processStatus = document.getElementById('processStatus');
+
+        // Drag and drop
+        dropArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropArea.classList.add('dragover');
+        });
+        dropArea.addEventListener('dragleave', () => dropArea.classList.remove('dragover'));
+        dropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                selectFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        function handleFileSelect(event) {
+            if (event.target.files.length > 0) {
+                selectFile(event.target.files[0]);
+            }
+        }
+
+        function selectFile(file) {
+            selectedFile = file;
+            uploadedDuration = 0;
+            dropArea.textContent = file.name;
+            dropArea.classList.add('has-file');
+            processStatus.textContent = '';
+            processStatus.className = 'status-text';
+
+            // Immediately show INPUT stats from file metadata
+            document.getElementById('statSource').textContent = file.name;
+            const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+            document.getElementById('statFileSize').textContent = sizeMB + ' MB';
+
+            // Decode with Web Audio to get sample rate, channels, duration
+            initAudio();
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const buf = await audioCtx.decodeAudioData(e.target.result.slice(0));
+                    uploadedDuration = buf.duration;
+                    document.getElementById('statRate').textContent = buf.sampleRate + ' Hz';
+                    document.getElementById('statChannels').textContent = buf.numberOfChannels === 1 ? 'MONO' : 'STEREO';
+                    document.getElementById('statInDuration').textContent = buf.duration.toFixed(2) + 's';
+                } catch (err) {
+                    document.getElementById('statRate').textContent = '?';
+                }
+            };
+            reader.readAsArrayBuffer(file);
+
+            // Clear output stats until processed
+            document.getElementById('statOutDuration').textContent = '—';
+            document.getElementById('statOutFrames').textContent = '—';
+
+            // Immediately load the uploaded file as the original track (CH1/IN)
+            if (tracks.original.playing) stopTrack('original');
+            const blobUrl = URL.createObjectURL(file);
+            loadAudio('original', blobUrl);
+        }
+
+        async function processAudio() {
+            processBtn.disabled = true;
+            processStatus.textContent = 'UPLOADING...';
+            processStatus.className = 'status-text';
+
+            // Show progress bar
+            const progContainer = document.getElementById('progressContainer');
+            const progFill = document.getElementById('progressFill');
+            const progTimer = document.getElementById('progressTimer');
+            const progEta = document.getElementById('progressEta');
+            const progLabel = document.getElementById('progressLabel');
+
+            const processStart = Date.now();
+            let timerInterval = null;
+            const estDuration = uploadedDuration || 10; // seconds
+
+            function startProgressTimer() {
+                progContainer.style.display = 'block';
+                progFill.style.width = '0%';
+                progLabel.textContent = 'PROCESSING THROUGH KERNEL REVERB...';
+                progEta.textContent = `Estimated: ~${Math.ceil(estDuration)}s (real-time processing)`;
+
+                timerInterval = setInterval(() => {
+                    const elapsed = (Date.now() - processStart) / 1000;
+                    const mins = Math.floor(elapsed / 60);
+                    const secs = Math.floor(elapsed % 60);
+                    progTimer.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+                    const pct = Math.min((elapsed / estDuration) * 100, 95);
+                    progFill.style.width = pct + '%';
+
+                    const remaining = Math.max(0, estDuration - elapsed);
+                    if (remaining > 0) {
+                        progEta.textContent = `~${Math.ceil(remaining)}s remaining`;
+                    } else {
+                        progEta.textContent = 'Finishing up...';
+                    }
+                }, 500);
+            }
+
+            function stopProgressTimer(success) {
+                clearInterval(timerInterval);
+                if (success) {
+                    progFill.style.width = '100%';
+                    const elapsed = ((Date.now() - processStart) / 1000).toFixed(1);
+                    progLabel.textContent = 'COMPLETE';
+                    progEta.textContent = `Processed in ${elapsed}s`;
+                    progTimer.textContent = '';
+
+                    // Show processing time in stats
+                    document.getElementById('statProcessItem').style.display = 'flex';
+                    document.getElementById('statProcessTime').textContent = elapsed + 's';
+
+                    // Hide progress bar after 3s
+                    setTimeout(() => { progContainer.style.display = 'none'; }, 3000);
+                } else {
+                    progLabel.textContent = 'FAILED';
+                    progFill.style.width = '0%';
+                    setTimeout(() => { progContainer.style.display = 'none'; }, 5000);
+                }
+            }
+
+            try {
+                if (selectedFile) {
+                    const arrayBuf = await selectedFile.arrayBuffer();
+                    const resp = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: arrayBuf,
+                        headers: { 'Content-Type': 'application/octet-stream' }
+                    });
+                    if (!resp.ok) throw new Error(await resp.text());
+                } else {
+                    const resp = await fetch('/api/process', { method: 'POST' });
+                    if (!resp.ok) throw new Error(await resp.text());
+                }
+
+                processStatus.textContent = 'PROCESSING...';
+                startProgressTimer();
+
+                // Poll for status
+                const poll = async () => {
+                    const st = await (await fetch('/api/status')).json();
+                    if (st.running) {
+                        processStatus.textContent = st.progress.toUpperCase();
+                        setTimeout(poll, 500);
+                    } else if (st.error) {
+                        processStatus.textContent = 'ERROR: ' + st.error.substring(0, 100);
+                        processStatus.className = 'status-text error';
+                        processBtn.disabled = false;
+                        stopProgressTimer(false);
+                    } else {
+                        processStatus.textContent = 'DONE — LOADING REVERB OUTPUT...';
+                        processStatus.className = 'status-text ok';
+                        processBtn.disabled = false;
+                        stopProgressTimer(true);
+                        if (selectedFile) {
+                            loadAudio('reverb', '/audio/reverb_output.wav');
+                        } else {
+                            reloadAudio();
+                        }
+                        loadMetadata();
+                    }
+                };
+                setTimeout(poll, 1000);
+            } catch (e) {
+                processStatus.textContent = 'ERROR: ' + e.message;
+                processStatus.className = 'status-text error';
+                processBtn.disabled = false;
+                stopProgressTimer(false);
+            }
+        }
+
+        // ============================
+        // Resize handler
+        // ============================
+        window.addEventListener('resize', () => {
+            if (tracks.original.buf) drawStaticWaveform('original');
+            if (tracks.reverb.buf) drawStaticWaveform('reverb');
+        });
+    </script>
+</body>
+
+</html>
