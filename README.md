@@ -1,143 +1,113 @@
-# ALSA Virtual Reverb Driver (EchoDriver)
+<div align="center">
 
-## Project Overview
+# ECHODRIVER: Kernel-Space DSP Engine
+**A High-Speed Virtual ALSA Reverb Sound Card & Web Visualizer**
 
-This project aims to develop a **Linux Kernel Module** that functions as a **virtual ALSA sound card**.  
-The primary objective is to create a *loopback-style* audio device that:
+[![Linux Kernel](https://img.shields.io/badge/Linux_Kernel-5.x%2B-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://kernel.org)
+[![C](https://img.shields.io/badge/C-00599C?style=for-the-badge&logo=c&logoColor=white)](#)
+[![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](#)
+[![ALSA](https://img.shields.io/badge/ALSA-Audio-FF4B4B?style=for-the-badge)](#)
+[![DSP](https://img.shields.io/badge/DSP-Reverb-00F2FE?style=for-the-badge)](#)
 
-- Accepts audio input  
-- Applies a **reverb effect** (future implementation)  
-- Exposes the processed audio for capture  
+*Pushing audio processing from user-space into the absolute depths of the Linux Ring Buffer.*
 
----
-
-## Current Architecture
-
-The driver currently implements a functional ALSA architecture with active playback simulation.
-
-### Platform Device
-- Registers a virtual platform device (`my_reverb_device`) to host the sound card  
-- Complies with modern Linux kernel requirements (5.x+)
-
-### Sound Card Control
-- Creates and registers an ALSA card instance named **EchoCard**
-
-### PCM Engine
-- Implements a PCM device (`Reverb_PCM`)
-- Supports both **playback** and **capture** substreams
-
-### Memory Management
-- **DMA Buffer**  
-  - Uses `snd_pcm_set_managed_buffer_all`
-  - Allocates a 64 KB ring buffer
-- **Private Runtime Data**  
-  - Uses `struct echo_runtime` for per-stream state
-  - Allocated dynamically using `kzalloc()` during device open
-
-### Heartbeat Mechanism (Simulated Hardware)
-- Uses `struct timer_list` to simulate hardware interrupts every **10 ms**
-- Updates the hardware pointer (`hw_ptr`) with proper ring-buffer wrapping
-- Calls `snd_pcm_period_elapsed()` to keep user-space applications synchronized
+[Features](#core-features) | [Installation](#installation) | [Architecture](#architecture) | [Usage](#usage)
 
 ---
 
-## Current Status
+</div>
 
-- **Build Status**: Compiles successfully without warnings  
-- **Load Status**:  
-  - Module loads correctly using `insmod`  
-  - Device nodes (e.g. `/dev/snd/pcmC1D0p`) are created  
-- **Runtime Status**: Fully functional  
-  - User-space applications (`aplay`, Python `sounddevice`) can:
-    - Open the device
-    - Negotiate parameters (`S16_LE`, `44.1 kHz`)
-    - Stream audio without hangs or crashes  
-  - Audio is consumed at the correct rate
+## The Concept
+
+**EchoDriver** is a complete, full-stack audio processing pipeline built entirely from scratch. 
+Instead of relying on slow user-space libraries to apply audio effects, EchoDriver intercepts audio streams at the **ALSA kernel level**, applies a real-time Digital Signal Processing (DSP) reverb comb-filter directly inside the DMA ring buffer, and shoots the processed audio back up.
+
+Paired with a modern **Web-based Visualizer** (featuring real-time FFT analysis and instant client-side decoding), it allows you to control a Linux kernel module seamlessly from a browser.
 
 ---
 
-## Implementation Roadmap
+## Core Features
 
-- **Phase 1 & 2**: Skeleton & Registration — **COMPLETED**
-- **Phase 3**: Heartbeat & Timer Logic — **COMPLETED**
-- **Phase 4**: Audio Data Processing — **NEXT**
+### 1. Kernel-Level DSP Engine (my_audio.c)
+- **High-Speed 5ms Timer:** The simulated hardware interrupts fire every 5ms, processing `rate/100` frames per tick. This accelerates processing to run at **~2x real-time speed**, cutting rendering time in half compared to standard loopback drivers.
+- **Dynamic Sample Rates:** Unlocked `hw_params` matrix allows native processing of any standard sample rate (`8kHz` to `192kHz`) and `16-bit` mono/stereo audio without user-space resampling.
+- **Sysfs Real-Time Controls:** Modify Reverb `delay_ms`, `decay`, and `wet` mix directly via `/sys/kernel/my_audio/` while audio is streaming.
+- **Zero-Copy Architecture:** DSP logic acts directly on the ALSA-negotiated DMA pointers.
 
-Planned work for Phase 4:
-- Access DMA buffer via `runtime->dma_area`
-- Implement circular buffer logic for delayed samples
-- Implement reverb algorithm  
-  - `output = current_sample + delayed_sample`
-- Verify audio modification via kernel logs (“Visualizer”)
+### 2. The Python Bridge (test_echo.py)
+- Python backend securely interfacing with the `hw:Echo` ALSA card using full-duplex, non-blocking streams.
+- Deep metadata extraction formatted dynamically into JSON for frontend consumption.
+
+### 3. Web Visualizer (visualizer.py)
+- **Instant Client-Side Decoding:** Web Audio API decodes dropped files locally to display file size, sample rate, channels, and duration *before* server upload.
+- **Real-Time FFT:** Live spectrum analysis of both the Original and Reverb-processed audio tracks.
+- **Dynamic Progress Tracker:** Tracks loopback capture and estimates the kernel processing time in real-time.
 
 ---
 
-## Build and Test Instructions
+## Architecture Flow
 
-### 1. Compilation
+```mermaid
+graph TD;
+    A[Web Browser / UI] -->|WAV Upload & Params| B(Python Backend);
+    B -->|aplay/sounddevice| C{ALSA hw:Echo};
+    C -. DMA Buffer .-> D((Kernel Space: my_audio.c));
+    D -->|5ms DSP Timer| D;
+    D -->|Processed Audio| C;
+    C -->|Output Stream| B;
+    B -->|Track Reload| A;
+```
+
+---
+
+## Setup & Installation
+
+### Prerequisites
+- Linux OS with Kernel Headers installed.
+- Python 3.x with `pip`.
+- GCC & Make toolchain for Kernel Module compilation.
+
+### Step 1: Compile the Kernel Module
 ```bash
-make
-````
+cd Driver
+make clean && make
 
----
-
-### 2. Installation
-
-```bash
-# Remove old module if present
-sudo rmmod my_audio
-
-# Insert new module
+# Insert the virtual card into the Kernel
+sudo rmmod my_audio 2>/dev/null
 sudo insmod my_audio.ko
 
-# Grant permissions for user-space testing (required after every reload)
+# Grant read/write access to ALSA nodes
 sudo chmod 777 /dev/snd/*
 ```
 
----
+> Note: Run `dmesg | tail` to verify the module loaded successfully.
 
-### 3. Verification
-
+### Step 2: Boot the Web Visualizer
 ```bash
-# Verify device registration
-cat /proc/asound/cards
+cd PythonApp
 
-# Check kernel logs
-sudo dmesg | tail
-```
+# Setup virtual environment
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 
----
-
-### 4. Testing (Playback)
-
-#### Option A: Standard ALSA Utility
-
-```bash
-# Should play silently and exit gracefully (no hangs)
-sudo aplay -D plughw:1,0 /usr/share/sounds/alsa/Front_Center.wav
-```
-
-#### Option B: Python Test Suite
-
-Ensure `test_echo.py` is configured for **44,100 Hz**.
-
-```bash
-python3 test_echo.py
-```
-
-**Expected Output**
-
-```
-Success! Playback finished...
+# Launch the server
+python3 visualizer.py
 ```
 
 ---
 
-## Notes
+## Usage
 
-This project is intended as a **learning-focused kernel audio driver**, demonstrating:
+1. Open a web browser and navigate to `http://localhost:8080`.
+2. Drag and drop any WAV file into the Input Area. Client-side stats will populate immediately.
+3. Adjust the Delay, Decay, and Wet Mix sliders. These controls map directly to the kernel sysfs nodes.
+4. Click `PROCESS THROUGH DRIVER`. Watch the progress bar as audio passes through the accelerated ALSA loopback.
+5. Use the playback controls to A/B test the original vs. processed signals alongside the FFT spectrum analyzer.
 
-* ALSA PCM internals
-* Timer-based hardware simulation
-* Ring-buffer audio processing
-* A foundation for real-time DSP effects inside the Linux kernel
+---
 
+<div align="center">
+  <p><i>"Kernel panics are just the bass dropping too hard."</i></p>
+  <b>Developed as an advanced exploration into ALSA internals, Kernel-Space DSP, and Full-Stack Integration.</b>
+</div>
