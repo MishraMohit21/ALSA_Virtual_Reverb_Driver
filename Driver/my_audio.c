@@ -48,9 +48,8 @@ module_param(reverb_wet, int, 0644);
 MODULE_PARM_DESC(reverb_wet, "Wet/dry mix percentage (0=dry only, 100=full reverb)");
 
 static short *echo_internal_buf;
-static unsigned long echo_write_pos;   /* next write position in internal buf */
-static unsigned long echo_read_pos;    /* next read position in internal buf  */
-static DEFINE_MUTEX(echo_buf_mutex);
+static atomic_long_t echo_write_pos = ATOMIC_LONG_INIT(0);
+static atomic_long_t echo_read_pos = ATOMIC_LONG_INIT(0);
 
 
 struct echo_runtime {
@@ -227,8 +226,8 @@ static void process_playback_chunk(struct echo_runtime *chip)
         input_sample = pb_buf[read_idx];
 
         /* Read the delayed sample from the internal buffer for the reverb tail */
-        delayed_idx = (echo_write_pos + ECHO_INTERNAL_BUF_SAMPLES - delay_samples)
-                      % ECHO_INTERNAL_BUF_SAMPLES;
+        delayed_idx = (atomic_long_read(&echo_write_pos) + ECHO_INTERNAL_BUF_SAMPLES - delay_samples)
+                      & (ECHO_INTERNAL_BUF_SAMPLES - 1);
         delayed_sample = echo_internal_buf[delayed_idx];
 
         /*
@@ -247,8 +246,8 @@ static void process_playback_chunk(struct echo_runtime *chip)
         if (mixed < -32768) mixed = -32768;
 
         /* Write processed sample into shared internal buffer */
-        echo_internal_buf[echo_write_pos] = (short)mixed;
-        echo_write_pos = (echo_write_pos + 1) % ECHO_INTERNAL_BUF_SAMPLES;
+        echo_internal_buf[atomic_long_read(&echo_write_pos) & (ECHO_INTERNAL_BUF_SAMPLES - 1)] = (short)mixed;
+        atomic_long_inc(&echo_write_pos); // Absolute increment
     }
 }
 
@@ -304,8 +303,8 @@ static void process_capture_chunk(struct echo_runtime *chip)
 
     for (i = 0; i < samples_per_tick; i++) {
         write_idx = ((chip->hw_ptr * runtime->channels) + i) % cap_buf_samples;
-        cap_buf[write_idx] = echo_internal_buf[echo_read_pos];
-        echo_read_pos = (echo_read_pos + 1) % ECHO_INTERNAL_BUF_SAMPLES;
+        cap_buf[write_idx] = echo_internal_buf[atomic_long_read(&echo_read_pos) & (ECHO_INTERNAL_BUF_SAMPLES - 1)];
+        atomic_long_inc(&echo_read_pos); 
     }
 }
 
@@ -350,10 +349,34 @@ static void echo_timer_function(struct timer_list *t)
     frames_to_process = runtime->rate / 100;
 
     /* Process the appropriate direction */
-    if (chip->is_playback)
+    if (chip->is_playback) {
+        int samples_to_process = frames_to_process * runtime->channels;
+        unsigned long write_pos = atomic_long_read(&echo_write_pos);
+        unsigned long read_pos = atomic_long_read(&echo_read_pos);
+        unsigned long filled = write_pos - read_pos;
+        unsigned long space_available = ECHO_INTERNAL_BUF_SAMPLES - filled;
+        
+        // BUFFER FULL: Jab writer ka buffer space kam ho, toh rukna chahiye
+        if (space_available < samples_to_process) {
+            // hw_ptr update nahi hoga -> Application (writer) block ho jayegi
+            mod_timer(&chip->timer, jiffies + msecs_to_jiffies(5));
+            return;
+        }
         process_playback_chunk(chip);
-    else
+    } else {
+        int samples_to_process = frames_to_process * runtime->channels;
+        unsigned long write_pos = atomic_long_read(&echo_write_pos);
+        unsigned long read_pos = atomic_long_read(&echo_read_pos);
+        unsigned long filled = write_pos - read_pos;
+
+        // BUFFER EMPTY: Jab padhne ke liye data hi na ho
+        if (filled < samples_to_process) {
+            // hw_ptr update nahi hoga -> Capture app wait karegi
+            mod_timer(&chip->timer, jiffies + msecs_to_jiffies(5));
+            return;
+        }
         process_capture_chunk(chip);
+    }
 
     /* Move pointer forward with safe wrapping */
     chip->hw_ptr += frames_to_process;
@@ -434,7 +457,7 @@ static int my_pcm_open(struct snd_pcm_substream *substream)
 
     runtime->hw = my_pcm_hardware;
 
-    chip = kzalloc(sizeof(*chip), GFP_KERNEL);
+    chip = kzalloc(sizeof(*chip), GFP_ATOMIC);
     if (!chip) {
         printk(KERN_ERR "EchoDriver: open - failed to allocate echo_runtime\n");
         return -ENOMEM;
@@ -501,8 +524,8 @@ static int my_pcm_prepare(struct snd_pcm_substream *substream)
     /* When playback prepares, reset the shared buffer so capture stays in sync */
     if (chip->is_playback && echo_internal_buf) {
         memset(echo_internal_buf, 0, ECHO_INTERNAL_BUF_SAMPLES * sizeof(short));
-        echo_write_pos = 0;
-        echo_read_pos = 0;
+        atomic_long_set(&echo_write_pos, 0);
+        atomic_long_set(&echo_read_pos, 0);
         printk(KERN_INFO "EchoDriver: prepare playback - reset internal buffer\n");
     }
 
@@ -564,13 +587,13 @@ static int __init echo_probe(void)
     printk(KERN_INFO "EchoDriver: initializing...\n");
 
     /* Allocate the shared internal buffer */
-    echo_internal_buf = kzalloc(ECHO_INTERNAL_BUF_SAMPLES * sizeof(short), GFP_KERNEL);
+    echo_internal_buf = vmalloc(ECHO_INTERNAL_BUF_SAMPLES * sizeof(short));
     if (!echo_internal_buf) {
         printk(KERN_ERR "EchoDriver: Failed to allocate internal buffer\n");
         return -ENOMEM;
     }
-    echo_write_pos = 0;
-    echo_read_pos = 0;
+    atomic_long_set(&echo_write_pos, 0);
+    atomic_long_set(&echo_read_pos, 0);
 
     err = echo_register_platform_device();
     if (err)
@@ -596,7 +619,7 @@ static int __init echo_probe(void)
     err_pdev:
         platform_device_unregister(my_pdev);
     err_buf:
-        kfree(echo_internal_buf);
+        vfree(echo_internal_buf);
         echo_internal_buf = NULL;
     
     return err;
@@ -611,9 +634,11 @@ static void __exit echo_exit(void)
         platform_device_unregister(my_pdev);
     }
     if (echo_internal_buf) {
-        kfree(echo_internal_buf);
+        vfree(echo_internal_buf);
         echo_internal_buf = NULL;
     }
+    atomic_long_set(&echo_write_pos, 0);
+    atomic_long_set(&echo_read_pos, 0);
     printk(KERN_INFO "EchoDriver: Unloaded.\n");
 }
 
